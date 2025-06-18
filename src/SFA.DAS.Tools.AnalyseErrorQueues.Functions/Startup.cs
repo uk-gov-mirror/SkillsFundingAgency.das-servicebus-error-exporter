@@ -9,7 +9,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using SFA.DAS.Tools.AnalyseErrorQueues.Functions.Infrastructure;
-using NLog.Extensions.Logging;
 using SFA.DAS.Tools.AnalyseErrorQueues.Functions;
 
 [assembly: FunctionsStartup(typeof(Startup))]
@@ -32,7 +31,7 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
 
             builder.Services.AddTransient(s => new BlobDataSink(config, s.GetRequiredService<ILogger<BlobDataSink>>()));
             builder.Services.AddTransient(s => new laDataSink(config, s.GetRequiredService<ILogger<laDataSink>>()));
-            builder.Services.AddTransient<ISvcBusService, SvcBusService>(s =>  new SvcBusService(config, s.GetRequiredService<ILogger<SvcBusService>>()));
+            builder.Services.AddTransient<ISvcBusService, SvcBusService>(s => new SvcBusService(config, s.GetRequiredService<ILogger<SvcBusService>>()));
 
             builder.Services.AddTransient<IAnalyseQueues, QueueAnalyser>(s =>
             {
@@ -51,23 +50,6 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
 
                 return new QueueAnalyser(sink, svc, config, log);
             });
-
-            //nlog
-            
-            var nLogConfiguration = new NLogConfiguration();
-            builder.Services.AddLogging((options) =>
-            {
-                options.SetMinimumLevel(LogLevel.Trace);
-                options.SetMinimumLevel(LogLevel.Trace);
-                options.AddNLog(new NLogProviderOptions
-                {
-                    CaptureMessageTemplates = true,
-                    CaptureMessageProperties = true
-                });
-                options.AddConsole();
-
-                nLogConfiguration.ConfigureNLog(configurationService);
-            });                           
         }
 
         public static IConfiguration LoadConfiguration(string appDirectory, IConfiguration configurationService)
@@ -76,14 +58,14 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
             var builder = new ConfigurationBuilder()
                 .SetBasePath(appDirectory)
                 .AddJsonFile("local.settings.json",
-                    optional: true, 
+                    optional: true,
                     reloadOnChange: true)
                 .AddJsonFile("appsettings.json",
-                    optional: true, 
+                    optional: true,
                     reloadOnChange: true)
                 .AddJsonFile("local.appsettings.json",
-                    optional: true, 
-                    reloadOnChange: true)                    
+                    optional: true,
+                    reloadOnChange: true)
                 .AddConfiguration(configurationService)
                 .AddEnvironmentVariables()
                 .AddAzureTableStorageConfiguration(
