@@ -19,7 +19,9 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
 
         [Function("AnalyseErrorQueue")]
 #if DEBUG
-        public async Task Run([TimerTrigger("0 */1 * * * *")]TimerInfo myTimer)
+        public async Task Run(
+            [TimerTrigger("0 */1 * * * *", RunOnStartup = true)] TimerInfo myTimer)
+
 #else
         public async Task Run([TimerTrigger("0 0 0 * * *")]TimerInfo myTimer)
 #endif

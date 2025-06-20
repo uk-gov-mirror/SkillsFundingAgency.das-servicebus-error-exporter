@@ -1,17 +1,16 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Azure.Functions.Worker.Builder;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Hosting;
 using SFA.DAS.Tools.AnalyseErrorQueues.Functions.Extensions;
 
-internal class Program
-{
-    private static void Main(string[] args)
+var host = new HostBuilder()
+    .ConfigureAppConfiguration((context, configBuilder) =>
     {
-        FunctionsApplication.CreateBuilder(args)
-            .AddConfiguration()
-            .ConfigureServices()
-            .Build()
-            .Run();
-    }
-}
+        configBuilder.AddDasConfiguration(context.HostingEnvironment);
+    })
+    .ConfigureFunctionsWorkerDefaults()
+    .ConfigureServices((context, services) =>
+    {
+        services.AddApplicationServices(context.Configuration);
+    })
+    .Build();
+
+await host.RunAsync();

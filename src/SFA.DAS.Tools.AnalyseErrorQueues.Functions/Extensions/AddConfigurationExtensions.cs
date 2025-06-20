@@ -1,35 +1,43 @@
-﻿using Microsoft.Azure.Functions.Worker.Builder;
+﻿using System;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using SFA.DAS.Configuration.AzureTableStorage;
-using System;
-using System.IO;
 
 namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions.Extensions
 {
     public static class ConfigurationExtensions
     {
-        public static FunctionsApplicationBuilder AddConfiguration(this FunctionsApplicationBuilder builder)
+        public static IConfigurationBuilder AddDasConfiguration(
+            this IConfigurationBuilder configBuilder,
+            IHostEnvironment environment)
         {
-            var basePath = Directory.GetCurrentDirectory();
-            var filePath = Path.Combine(basePath, "local.settings.json");
+            var earlyConfig = new ConfigurationBuilder()
+                .AddJsonFile("local.settings.json", optional: true)
+                .AddEnvironmentVariables()
+                .Build();
 
-            builder.Configuration
-                .SetBasePath(basePath)
-                .AddJsonFile(filePath, optional: true, reloadOnChange: true)
+            var configNames = earlyConfig["ConfigNames"]?.Split(',') ?? Array.Empty<string>();
+            var envName = earlyConfig["EnvironmentName"];
+            var storageConnStr = earlyConfig["ConfigurationStorageConnectionString"];
+
+            configBuilder
+                .SetBasePath(environment.ContentRootPath)
+                .AddJsonFile("appsettings.json", optional: true)
+                .AddJsonFile("local.settings.json", optional: true)
                 .AddEnvironmentVariables();
 
-            builder.Build();
-            var config = builder.Configuration;
-
-            builder.Configuration.AddAzureTableStorage(options =>
+            if (!string.IsNullOrWhiteSpace(storageConnStr))
             {
-                options.ConfigurationKeys = config["ConfigNames"]?.Split(",") ?? Array.Empty<string>();
-                options.StorageConnectionString = config["ConfigurationStorageConnectionString"];
-                options.EnvironmentName = config["EnvironmentName"];
-                options.PreFixConfigurationKeys = false;
-            });
+                configBuilder.AddAzureTableStorage(options =>
+                {
+                    options.ConfigurationKeys = configNames;
+                    options.StorageConnectionString = storageConnStr;
+                    options.EnvironmentName = envName;
+                    options.PreFixConfigurationKeys = false;
+                });
+            }
 
-            return builder;
+            return configBuilder;
         }
     }
 }
