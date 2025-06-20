@@ -8,58 +8,61 @@ using SFA.DAS.Tools.AnalyseErrorQueues.Engine;
 using SFA.DAS.Tools.AnalyseErrorQueues.Services.DataSinkService;
 using SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService;
 
-public static class ServiceCollectionExtensions
+namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions.Extensions
 {
-    public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration config)
+    public static class ServiceCollectionExtensions
     {
-        services.AddOptions<ApplicationConfiguration>()
+        public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration config)
+        {
+            services.AddOptions<ApplicationConfiguration>()
                 .Configure(config.Bind);
 
-        services.AddOptions<ServiceBusRepoSettings>()
+            services.AddOptions<ServiceBusRepoSettings>()
                 .Configure(config.GetSection(nameof(ServiceBusRepoSettings)).Bind);
 
-        services.AddOptions<LADataSinkSettings>()
+            services.AddOptions<LADataSinkSettings>()
                 .Configure(config.GetSection(nameof(LADataSinkSettings)).Bind);
 
-        services.AddOptions<BlobDataSinkSettings>()
+            services.AddOptions<BlobDataSinkSettings>()
                 .Configure(config.GetSection(nameof(BlobDataSinkSettings)).Bind);
 
-        services.AddLogging();
+            services.AddLogging();
 
-        services.AddTransient<IDataSink, BlobDataSink>();
-        services.AddTransient<ISvcBusService, SvcBusService>();
+            services.AddTransient<IDataSink, BlobDataSink>();
+            services.AddTransient<ISvcBusService, SvcBusService>();
 
-        services.AddTransient<IAnalyseQueues, QueueAnalyser>(sp =>
-        {
-            var sink = sp.GetRequiredService<IDataSink>();
-            var svc = sp.GetRequiredService<ISvcBusService>();
-            var log = sp.GetRequiredService<ILogger<QueueAnalyser>>();
-            var serviceBusSettings = sp.GetRequiredService<IOptions<ServiceBusRepoSettings>>();
-            return new QueueAnalyser(sink, svc, serviceBusSettings, log);
-        });
+            services.AddTransient<IAnalyseQueues, QueueAnalyser>(sp =>
+            {
+                var sink = sp.GetRequiredService<IDataSink>();
+                var svc = sp.GetRequiredService<ISvcBusService>();
+                var log = sp.GetRequiredService<ILogger<QueueAnalyser>>();
+                var serviceBusSettings = sp.GetRequiredService<IOptions<ServiceBusRepoSettings>>();
+                return new QueueAnalyser(sink, svc, serviceBusSettings, log);
+            });
 
-        services.AddTransient<IAnalyseQueuesBase, QueueAnalyser>(sp =>
-        {
-            var sink = sp.GetRequiredService<IDataSink>();
-            var svc = sp.GetRequiredService<ISvcBusService>();
-            var log = sp.GetRequiredService<ILogger<QueueAnalyser>>();
-            var serviceBusSettings = sp.GetRequiredService<IOptions<ServiceBusRepoSettings>>();
-            return new QueueAnalyser(sink, svc, serviceBusSettings, log);
-        });
+            services.AddTransient<IAnalyseQueuesBase, QueueAnalyser>(sp =>
+            {
+                var sink = sp.GetRequiredService<IDataSink>();
+                var svc = sp.GetRequiredService<ISvcBusService>();
+                var log = sp.GetRequiredService<ILogger<QueueAnalyser>>();
+                var serviceBusSettings = sp.GetRequiredService<IOptions<ServiceBusRepoSettings>>();
+                return new QueueAnalyser(sink, svc, serviceBusSettings, log);
+            });
 
-        services.AddTransient<ServiceBusClient>(sp =>
-        {
-            var settings = sp.GetRequiredService<IOptions<ServiceBusRepoSettings>>().Value;
-            var envName = config["EnvironmentName"];
+            services.AddTransient<ServiceBusClient>(sp =>
+            {
+                var settings = sp.GetRequiredService<IOptions<ServiceBusRepoSettings>>().Value;
+                var envName = config["EnvironmentName"];
 
-            return envName == "LOCAL"
-                ? new ServiceBusClient(settings.ServiceBusConnectionString, new ServiceBusClientOptions
-                {
-                    TransportType = ServiceBusTransportType.AmqpWebSockets
-                })
-                : new ServiceBusClient(settings.ServiceBusConnectionString);
-        });
+                return envName == "LOCAL"
+                    ? new ServiceBusClient(settings.ServiceBusConnectionString, new ServiceBusClientOptions
+                    {
+                        TransportType = ServiceBusTransportType.AmqpWebSockets
+                    })
+                    : new ServiceBusClient(settings.ServiceBusConnectionString);
+            });
 
-        return services;
+            return services;
+        }
     }
 }
