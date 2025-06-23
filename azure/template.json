@@ -290,7 +290,7 @@
                 },
                 "parameters": {
                     "principalId": {
-                        "value": "[reference('function-app').outputs.managedServiceIdentityId.value]"
+                        "value": "[reference(concat(variables('functionAppName'), '-', parameters('utcValue'))).outputs.managedServiceIdentityId.value]"
                     },
                     "assignmentType": {
                         "value": "ServiceBusReceiver"
@@ -299,10 +299,7 @@
                         "value": "[variables('sharedServiceBusName')]"
                     }
                 }
-            },
-            "dependsOn": [
-                "function-app"
-            ]
+            }
         }
     ],
     "outputs": {
