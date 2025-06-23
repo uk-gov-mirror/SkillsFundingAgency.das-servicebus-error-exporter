@@ -213,7 +213,7 @@
                         "value": "[variables('appServicePlanName')]"
                     },
                     "appServicePlanResourceGroup": {
-                        "value": "[parameters('sharedEnvResourceGroup')]"
+                        "value": "[variables('resourceGroupName')]"
                     },
                     "subnetResourceId": {
                         "value": "[parameters('sharedWorkerSubnetResourceId')]"
