@@ -18,12 +18,6 @@ jobs:
             EnvironmentId: $(Environment.Id)
             PipelineName: $(Build.DefinitionName)
             RunId: $(Build.BuildId)
-        - template: azure-pipelines-templates/deploy/step/get-product-app-insights.yml@das-platform-building-blocks
-          parameters:
-            ServiceConnection: ${{ parameters.ServiceConnection }}
-            AppInsightsResourceGroup: $(SharedEnvResourceGroup)
-            AppInsightsName: $(ProductAppInsightsName)
-            IsMultiRepoCheckout: true
         - template: azure-pipelines-templates/deploy/step/arm-deploy.yml@das-platform-building-blocks
           parameters:
             ServiceConnection: ${{ parameters.ServiceConnection }}
@@ -39,14 +33,6 @@ jobs:
               NServiceBusConnectionString: $(nServiceBusConnectionString)
               nServiceBusLicense: $(nServiceBusLicense)
               ApplicationInsightsConnectionString: $(ApplicationInsightsConnectionString)
-        - template: azure-pipelines-templates/deploy/step/get-apim-subscription-key.yml@das-platform-building-blocks
-          parameters:
-            ServiceConnection: ${{ parameters.ServiceConnection }}
-            ApimResourceGroup: $(SharedApimResourceGroup)
-            ApimName: $(SharedApimName)
-            SubscriptionId: $(FunctionAppNameReservation)
-            PipelineVariableName: ReservationsApimSubscriptionKey
-            IsMultiRepoCheckout: true
         - template: azure-pipelines-templates/deploy/step/generate-config.yml@das-platform-building-blocks
           parameters:
             EnvironmentName: $(EnvironmentName)
@@ -57,32 +43,11 @@ jobs:
             TargetFileName: '*.schema.json'
             TableName: Configuration
             ConfigurationSecrets:
-              ReservationsApimSubscriptionKey: $(ReservationsApimSubscriptionKey)
               AzureWebJobsStorage: $(AzureWebJobsStorage)
               NServiceBusLicense: $(NServiceBusLicense)
               ServiceBusConnectionString: $(ServiceBusConnectionString)
         - template: azure-pipelines-templates/deploy/step/function-deploy.yml@das-platform-building-blocks
           parameters:
             ServiceConnection: ${{ parameters.ServiceConnection }}
-            FunctionAppName: $(functionAppNameCourse)
-            DeploymentPackagePath: $(Pipeline.Workspace)/${{ parameters.SolutionBaseName }}/SFA.DAS.Reservations.Functions.RefreshCourse.zip
-        - template: azure-pipelines-templates/deploy/step/function-deploy.yml@das-platform-building-blocks
-          parameters:
-            ServiceConnection: ${{ parameters.ServiceConnection }}
-            FunctionAppName: $(functionAppNameReservation)
-            DeploymentPackagePath: $(Pipeline.Workspace)/${{ parameters.SolutionBaseName }}/SFA.DAS.Reservations.Functions.Reservations.zip
-        - template: azure-pipelines-templates/deploy/step/function-deploy.yml@das-platform-building-blocks
-          parameters:
-            ServiceConnection: ${{ parameters.ServiceConnection }}
-            FunctionAppName: $(functionAppNameLegalEntities)
-            DeploymentPackagePath: $(Pipeline.Workspace)/${{ parameters.SolutionBaseName }}/SFA.DAS.Reservations.Functions.LegalEntities.zip
-        - template: azure-pipelines-templates/deploy/step/function-deploy.yml@das-platform-building-blocks
-          parameters:
-            ServiceConnection: ${{ parameters.ServiceConnection }}
-            FunctionAppName: $(functionAppNameReservationIndex)
-            DeploymentPackagePath: $(Pipeline.Workspace)/${{ parameters.SolutionBaseName }}/SFA.DAS.Reservations.Functions.ReservationIndex.zip
-        - template: azure-pipelines-templates/deploy/step/function-deploy.yml@das-platform-building-blocks
-          parameters:
-            ServiceConnection: ${{ parameters.ServiceConnection }}
-            FunctionAppName: $(functionAppNameProviderPermissions)
-            DeploymentPackagePath: $(Pipeline.Workspace)/${{ parameters.SolutionBaseName }}/SFA.DAS.Reservations.Functions.ProviderPermission.zip
+            FunctionAppName: $(functionAppName)
+            DeploymentPackagePath: $(Pipeline.Workspace)/${{ parameters.SolutionBaseName }}/SFA.DAS.Tools.AnalyseErrorQueues.Functions.zip
