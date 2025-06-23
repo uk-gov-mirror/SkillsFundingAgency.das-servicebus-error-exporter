@@ -32,7 +32,10 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService
 
             var managementClient = new ServiceBusAdministrationClient(_config.ServiceBusConnectionString);
             var errorQueues = new List<string>();
-            var queueSelectionRegex = new Regex(_config.QueueSelectionRegex);
+
+            var regexTimeout = TimeSpan.FromSeconds(5); 
+            var queueSelectionRegex = new Regex(_config.QueueSelectionRegex, RegexOptions.None, regexTimeout);
+
 
             await foreach (var queue in managementClient.GetQueuesAsync())
             {

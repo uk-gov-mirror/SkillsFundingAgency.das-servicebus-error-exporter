@@ -19,13 +19,18 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
 
         [Function("AnalyseErrorQueuesToBlob")]
 #if DEBUG
-        public async Task Run([TimerTrigger("0 */1 * * * *")]TimerInfo timer)
+        public async Task Run([TimerTrigger("0 */1 * * * *",RunOnStartup = true)]TimerInfo timer)
 #else
         public async Task Run([TimerTrigger("0 0 0 * * *")]TimerInfo timer)
 #endif
         {
              _logger.LogInformation($"AnalyseErrorQueueToBlob function executed at: {DateTime.Now}");
-             _logger.LogInformation(_analyser == null ? "analyser is null" : $"analyser is NOT null {_analyser.GetType().ToString()}");
+
+            if (_analyser == null)
+            {
+                _logger.LogError("_analyser is null. Skipping execution.");
+                return;
+            }
 
             await _analyser.Run();
         }
