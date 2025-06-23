@@ -196,7 +196,7 @@
         },
         {
             "apiVersion": "2020-10-01",
-            "name": "function-app",
+            "name": "[concat(variables('functionAppName'), '-', parameters('utcValue'))]",
             "type": "Microsoft.Resources/deployments",
             "resourceGroup": "[variables('resourceGroupName')]",
             "properties": {
