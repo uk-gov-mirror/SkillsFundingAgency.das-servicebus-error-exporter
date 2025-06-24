@@ -232,8 +232,8 @@
                                     "value": "[parameters('sharedStorageAccountConnectionString')]"
                                 },
                                 {
-                                    "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-                                    "value": "[reference(concat(variables('functionAppName'), '-application-insights-', parameters('utcValue'))).outputs.InstrumentationKey.value]"
+                                    "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                                    "value": "[reference(concat(variables('functionAppName'), '-application-insights-', parameters('utcValue'))).outputs.ConnectionString.value]"
                                 },
                                 {
                                     "name": "FUNCTIONS_EXTENSION_VERSION",
