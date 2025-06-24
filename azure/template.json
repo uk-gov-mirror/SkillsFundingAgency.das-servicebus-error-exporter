@@ -12,7 +12,8 @@
             "type": "string"
         },
         "configNames": {
-            "type": "string"
+            "type": "string",
+            "defaultValue": "SFA.DAS.Tools.AnalyseErrorQueues.Functions"
         },
         "resourceEnvironmentName": {
             "type": "string"
@@ -249,7 +250,7 @@
                                 },
                                 {
                                     "name": "ConfigNames",
-                                    "value": "[toUpper(parameters('configNames'))]"
+                                    "value": "[parameters('configNames')]"
                                 },
                                 {
                                     "name": "Version",
