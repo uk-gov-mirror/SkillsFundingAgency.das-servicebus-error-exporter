@@ -18,13 +18,9 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
         }
 
         [Function("AnalyseErrorQueuesToBlob")]
-#if DEBUG
-        public async Task Run([TimerTrigger("0 */1 * * * *",RunOnStartup = true)]TimerInfo timer)
-#else
-        public async Task Run([TimerTrigger("0 0 0 * * *")]TimerInfo timer)
-#endif
+        public async Task Run([TimerTrigger("0 0 0 * * *", RunOnStartup = false)] TimerInfo timer)
         {
-             _logger.LogInformation($"AnalyseErrorQueueToBlob function executed at: {DateTime.Now}");
+            _logger.LogInformation($"AnalyseErrorQueueToBlob function executed at: {DateTime.Now}");
 
             if (_analyser == null)
             {
@@ -32,7 +28,15 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
                 return;
             }
 
-            await _analyser.Run();
+            try
+            {
+                await _analyser.Run();
+                _logger.LogInformation("AnalyseErrorQueueToBlob function completed successfully.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while running AnalyseErrorQueueToBlob.");
+            }
         }
     }
 }
