@@ -154,7 +154,7 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService
 
             if (input.Length > maxLength)
             {
-                _logger?.LogWarning("Message body exceeds {MaxLength} characters. Truncating to {MaxLength}.", maxLength, maxLength);
+                _logger?.LogWarning("Message body exceeds {OriginalLength} characters. Truncating to {TruncateLength}.", maxLength, maxLength);
                 return input.Substring(0, maxLength) + "...";
             }
 
