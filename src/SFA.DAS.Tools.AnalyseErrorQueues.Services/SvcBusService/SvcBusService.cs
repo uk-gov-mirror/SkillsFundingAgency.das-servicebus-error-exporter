@@ -33,7 +33,7 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService
             var managementClient = new ServiceBusAdministrationClient(_config.ServiceBusConnectionString);
             var errorQueues = new List<string>();
 
-            var regexTimeout = TimeSpan.FromSeconds(5); 
+            var regexTimeout = TimeSpan.FromSeconds(5);
             var queueSelectionRegex = new Regex(_config.QueueSelectionRegex, RegexOptions.None, regexTimeout);
 
 
@@ -97,51 +97,68 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService
             var messageModel = new sbMessageModel();
 
             string GetStringValue(string key) =>
-            msg.ApplicationProperties.TryGetValue(key, out var value) ? value?.ToString() ?? string.Empty : string.Empty;
+                msg.ApplicationProperties.TryGetValue(key, out var value) ?
+                Truncate(value?.ToString()) : string.Empty;
 
             string GetCrLfToTildeValue(string key) =>
-            GetStringValue(key).CrLfToTilde();
+                Truncate(GetStringValue(key).CrLfToTilde());
 
             string GetSplitFirstValue(string key) =>
-            GetStringValue(key).Split(',').FirstOrDefault() ?? string.Empty;
+                Truncate(GetStringValue(key).Split(',').FirstOrDefault() ?? string.Empty);
 
-            if (msg.ApplicationProperties.TryGetValue("NServiceBus.ExceptionInfo.Message", out var exceptionMessage))
+            try
             {
-                // This is an nServiceBusFailure.
-                messageModel.ExceptionMessage = exceptionMessage?.ToString()?.CrLfToTilde() ?? string.Empty;
-                messageModel.EnclosedMessageTypes = GetSplitFirstValue("NServiceBus.EnclosedMessageTypes");
-
-                messageModel.MessageId = GetStringValue("NServiceBus.MessageId");
-                messageModel.TimeOfFailure = GetStringValue("NServiceBus.TimeOfFailure");
-                messageModel.ExceptionType = GetStringValue("NServiceBus.ExceptionInfo.ExceptionType");
-                messageModel.OriginatingEndpoint = GetStringValue("NServiceBus.OriginatingEndpoint");
-                messageModel.ProcessingEndpoint = GetStringValue("NServiceBus.ProcessingEndpoint");
-                messageModel.StackTrace = GetCrLfToTildeValue("NServiceBus.ExceptionInfo.StackTrace");
-            }
-            else if (msg.ApplicationProperties.TryGetValue("DeadLetterReason", out exceptionMessage))
-            {
-                messageModel.ExceptionMessage = exceptionMessage?.ToString()?.CrLfToTilde() ?? string.Empty;
-                messageModel.EnclosedMessageTypes = GetSplitFirstValue("NServiceBus.EnclosedMessageTypes");
-
-                messageModel.MessageId = GetStringValue("NServiceBus.MessageId");
-                messageModel.TimeOfFailure = GetStringValue("NServiceBus.TimeSent");
-                messageModel.ExceptionType = "Unknown";
-                messageModel.OriginatingEndpoint = GetStringValue("NServiceBus.OriginatingEndpoint");
-                messageModel.ProcessingEndpoint = "Unknown";
-                messageModel.StackTrace = string.Empty;
-            }
+                if (msg.ApplicationProperties.TryGetValue("NServiceBus.ExceptionInfo.Message", out var exceptionMessage))
+                {
+                    messageModel.ExceptionMessage = Truncate(exceptionMessage?.ToString()?.CrLfToTilde());
+                    messageModel.EnclosedMessageTypes = GetSplitFirstValue("NServiceBus.EnclosedMessageTypes");
+                    messageModel.MessageId = GetStringValue("NServiceBus.MessageId");
+                    messageModel.TimeOfFailure = GetStringValue("NServiceBus.TimeOfFailure");
+                    messageModel.ExceptionType = GetStringValue("NServiceBus.ExceptionInfo.ExceptionType");
+                    messageModel.OriginatingEndpoint = GetStringValue("NServiceBus.OriginatingEndpoint");
+                    messageModel.ProcessingEndpoint = GetStringValue("NServiceBus.ProcessingEndpoint");
+                    messageModel.StackTrace = GetCrLfToTildeValue("NServiceBus.ExceptionInfo.StackTrace");
+                }
+                else if (msg.ApplicationProperties.TryGetValue("DeadLetterReason", out exceptionMessage))
+                {
+                    messageModel.ExceptionMessage = Truncate(exceptionMessage?.ToString()?.CrLfToTilde());
+                    messageModel.EnclosedMessageTypes = GetSplitFirstValue("NServiceBus.EnclosedMessageTypes");
+                    messageModel.MessageId = GetStringValue("NServiceBus.MessageId");
+                    messageModel.TimeOfFailure = GetStringValue("NServiceBus.TimeSent");
+                    messageModel.ExceptionType = "Unknown";
+                    messageModel.OriginatingEndpoint = GetStringValue("NServiceBus.OriginatingEndpoint");
+                    messageModel.ProcessingEndpoint = "Unknown";
+                    messageModel.StackTrace = string.Empty;
+                }
 
 #if DEBUG
-    // When developing, I want to be able to use as simple a message as possible but still see some information in the output,
-    // so I will just grab the message body and output it raw.
-    else
-    {
-        _logger.LogDebug($"msg.Body: {Encoding.UTF8.GetString(msg.Body.ToArray())}");
-        messageModel.RawMessage = Encoding.UTF8.GetString(msg.Body.ToArray());
-    }
+                else
+                {
+                    var bodyString = Truncate(Encoding.UTF8.GetString(msg.Body.ToArray()));
+                    _logger.LogDebug($"msg.Body: {bodyString}");
+                    messageModel.RawMessage = bodyString;
+                }
 #endif
-            return messageModel;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error formatting message to log.");
+                messageModel.ExceptionMessage = "Error formatting message: " + ex.Message;
             }
 
+            return messageModel;
+        }
+        private string Truncate(string input, int maxLength = 10000)
+        {
+            if (string.IsNullOrEmpty(input)) return string.Empty;
+
+            if (input.Length > maxLength)
+            {
+                _logger?.LogWarning("Message body exceeds {MaxLength} characters. Truncating to {MaxLength}.", maxLength, maxLength);
+                return input.Substring(0, maxLength) + "...";
+            }
+
+            return input;
+        }
     }
 }
