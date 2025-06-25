@@ -36,6 +36,7 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An error occurred while running AnalyseErrorQueueToBlob.");
+                throw;
             }
         }
     }

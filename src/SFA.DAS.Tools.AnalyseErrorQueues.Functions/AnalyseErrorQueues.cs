@@ -19,7 +19,7 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
 
         [Function("AnalyseErrorQueue")]
         public async Task Run(
-            [TimerTrigger("0 0 0/3 * * *", RunOnStartup = false)] TimerInfo myTimer)
+            [TimerTrigger("0 0 * * * *", RunOnStartup = false)] TimerInfo myTimer)
         {
             try
             {
