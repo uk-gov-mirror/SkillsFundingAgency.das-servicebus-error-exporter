@@ -151,7 +151,7 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService
 
             return messageModel;
         }
-        private string Truncate(string input, int maxLength = 10000)
+        private string Truncate(string input, int maxLength = 50000)
         {
             if (string.IsNullOrEmpty(input)) return string.Empty;
 
