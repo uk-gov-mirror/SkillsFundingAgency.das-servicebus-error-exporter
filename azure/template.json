@@ -112,7 +112,7 @@
         },
         {
             "apiVersion": "2020-10-01",
-            "name": "[concat(variables('functionAppName'), '-application-insights-', parameters('utcValue'))]",
+            "name": "function-app-insights",
             "type": "Microsoft.Resources/deployments",
             "resourceGroup": "[variables('resourceGroupName')]",
             "properties": {
@@ -161,7 +161,7 @@
         },
         {
             "apiVersion": "2020-10-01",
-            "name": "[concat(variables('functionAppName'), '-', parameters('utcValue'))]",
+            "name": "function-app",
             "type": "Microsoft.Resources/deployments",
             "resourceGroup": "[variables('resourceGroupName')]",
             "properties": {
@@ -198,7 +198,7 @@
                                 },
                                 {
                                     "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-                                    "value": "[reference(concat(variables('functionAppName'), '-application-insights-', parameters('utcValue'))).outputs.ConnectionString.value]"
+                                    "value": "[reference('function-app-insights').outputs.ConnectionString.value]"
                                 },
                                 {
                                     "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -255,7 +255,7 @@
                 },
                 "parameters": {
                     "principalId": {
-                        "value": "[reference(concat(variables('functionAppName'), '-', parameters('utcValue'))).outputs.managedServiceIdentityId.value]"
+                        "value": "[reference('function-app').outputs.managedServiceIdentityId.value]"
                     },
                     "assignmentType": {
                         "value": "ServiceBusReceiver"
