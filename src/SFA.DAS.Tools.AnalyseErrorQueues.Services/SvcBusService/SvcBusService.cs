@@ -71,8 +71,9 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService
             var formattedMessages = new List<sbMessageModel>();
 
             var peekedMessages = await messageReceiver.PeekMessagesAsync(batchSize);
-
+#if DEBUG
             _logger.LogDebug($"Peeked Message Count: {peekedMessages.Count}");
+#endif
 
             while (peekedMessages?.Count > 0)
             {
@@ -81,8 +82,10 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService
                     var messageModel = FormatMsgToLog(msg);
                     totalMessages++;
                     if (totalMessages % notifyBatchSize == 0)
+#if DEBUG
                         _logger.LogDebug($"    {queueName} - processed: {totalMessages}");
-
+#endif
+                    
                     formattedMessages.Add(messageModel);
                 }
                 peekedMessages = await messageReceiver.PeekMessagesAsync(batchSize);
