@@ -1,33 +1,34 @@
-﻿using SFA.DAS.Tools.AnalyseErrorQueues.Domain;
-using Microsoft.Azure.Storage;
-using Microsoft.Azure.Storage.Blob;
-using Microsoft.Extensions.Configuration;
+﻿using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
-using System;
+using Microsoft.Extensions.Options;
+using SFA.DAS.Tools.AnalyseErrorQueues.Domain;
+using SFA.DAS.Tools.AnalyseErrorQueues.Domain.Configuration;
 using System.Collections.Generic;
 using System.IO;
+using System;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.DataSinkService
 {
     public class BlobDataSink : IDataSink
     {
-        private readonly IConfiguration _config;
+        private readonly BlobDataSinkSettings _config;
         private readonly ILogger _logger;
 
-        public BlobDataSink(IConfiguration config, ILogger<BlobDataSink> logger)
+        public BlobDataSink(IOptions<BlobDataSinkSettings> config, ILogger<BlobDataSink> logger)
         {
-            _config = config ?? throw new Exception("config is null");
+            _config = config.Value ?? throw new Exception("config is null");
             _logger = logger ?? throw new Exception("logger is null");
         }
 
-        public void SinkMessages(string envName, string queueName, IEnumerable<sbMessageModel> messages)
+        public async Task SinkMessages(string envName, string queueName, IEnumerable<sbMessageModel> messages)
         {
-            var connString = _config.GetValue<string>("BlobDataSinkSettings:StorageConnectionString");
-            var blobContainerName = _config.GetValue<string>("BlobDataSinkSettings:StorageContainerName");
+            var connString = _config.StorageConnectionString;
+            var blobContainerName = _config.StorageContainerName;
 
 #if DEBUG
-            if(_logger.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Debug))
+            if (_logger.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Debug))
             {
                 _logger.LogDebug($"connString: {connString}");
                 _logger.LogDebug($"connString: {blobContainerName}");
@@ -42,22 +43,28 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.DataSinkService
                 sb.AppendLine(psvLine);
             }
 
-            if (CloudStorageAccount.TryParse(connString, out CloudStorageAccount cloudStorageAccount))
+            try
             {
-                var byteArr = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+                var byteArr = Encoding.UTF8.GetBytes(sb.ToString());
 
-                using(var stream = new MemoryStream(byteArr))
+                using (var stream = new MemoryStream(byteArr))
                 {
-                    var cloudBlobClient = cloudStorageAccount.CreateCloudBlobClient();
-                    var cloudBlobContainer = cloudBlobClient.GetContainerReference(blobContainerName);
-                    var cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference($"{envName}.{queueName}.PeekedMessages.psv");
-                    cloudBlockBlob.UploadFromStreamAsync(stream).Wait();
+                    var blobServiceClient = new BlobServiceClient(connString);
+                    var blobContainerClient = blobServiceClient.GetBlobContainerClient(blobContainerName);
+                    await blobContainerClient.CreateIfNotExistsAsync();
+
+                    var blobClient = blobContainerClient.GetBlobClient($"{envName}.{queueName}.PeekedMessages.psv");
+
+                    await blobClient.UploadAsync(stream, overwrite: true);
+
                     _logger.LogInformation("File Successfully uploaded");
                 }
             }
-            else
+            catch (Exception ex)
             {
-                _logger.LogCritical("Could not connect to storage");
+                _logger.LogCritical($"Could not connect to storage: {ex.Message}");
+
+
             }
         }
     }

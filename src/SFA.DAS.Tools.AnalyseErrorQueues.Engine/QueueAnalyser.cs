@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService;
 using SFA.DAS.Tools.AnalyseErrorQueues.Services.DataSinkService;
 using System.Linq;
+using Microsoft.Extensions.Options;
+using SFA.DAS.Tools.AnalyseErrorQueues.Domain.Configuration;
 
 namespace SFA.DAS.Tools.AnalyseErrorQueues.Engine
 {
@@ -13,14 +14,14 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Engine
     {
         private readonly IDataSink _dataSink;
         private readonly ISvcBusService _svcBusSvc;
-        private readonly IConfiguration _config;
+        private readonly ServiceBusRepoSettings _config;
         private readonly ILogger<QueueAnalyser> _logger;
 
-        public QueueAnalyser(IDataSink dataSink, ISvcBusService svcBusSvc, IConfiguration config, ILogger<QueueAnalyser> logger)
+        public QueueAnalyser(IDataSink dataSink, ISvcBusService svcBusSvc, IOptions<ServiceBusRepoSettings> config, ILogger<QueueAnalyser> logger)
         {
             _dataSink = dataSink ?? throw new Exception("data sink is null");
             _svcBusSvc = svcBusSvc ?? throw new Exception("service is null");
-            _config = config ?? throw new Exception("config is null");
+            _config = config.Value ?? throw new Exception("config is null");
             _logger = logger ?? throw new Exception("Logger is null");
 
             if (_logger.IsEnabled(LogLevel.Debug))
@@ -38,9 +39,9 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Engine
             timer.Start();
 
             int totalMessages = 0;
-            
+
             var errorQueues = await _svcBusSvc.GetErrorQueuesAsync();
-            var envName = _config.GetValue<string>("ServiceBusRepoSettings:EnvName");
+            var envName = _config.EnvName;
 
             if (_logger.IsEnabled(LogLevel.Information))
             {
@@ -50,12 +51,15 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Engine
             }
 
             foreach (var queueName in errorQueues)
-            {                
+            {
                 // Register the queue message handler and receive messages in a loop
                 _logger.LogInformation($"Processing messages for queue: {queueName}");
                 var peekedMessages = await _svcBusSvc.PeekMessages(queueName);
                 totalMessages += peekedMessages.Count;
-                _dataSink.SinkMessages(envName, queueName, peekedMessages);
+                if (peekedMessages.Any())
+                {
+                    _dataSink.SinkMessages(envName, queueName, peekedMessages);
+                }
                 _logger.LogInformation($"Finished queue: {queueName} - processed: {peekedMessages.Count} messages");
             }
 

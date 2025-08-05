@@ -1,35 +1,42 @@
 using System;
-using Microsoft.Azure.Functions.Extensions.DependencyInjection;
-using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using SFA.DAS.Tools.AnalyseErrorQueues.Engine;
 using System.Threading.Tasks;
+using Microsoft.Azure.Functions.Worker;
 
 namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
 {
     public class AnalyseErrorQueues
     {
+        private readonly ILogger<AnalyseErrorQueues> _logger;
         private readonly IAnalyseQueues _analyser;
 
-        public AnalyseErrorQueues(IAnalyseQueues analyser)
-        {            
-            _analyser = analyser ?? throw new Exception("Analyser is null");            
+        public AnalyseErrorQueues(IAnalyseQueues analyser, ILogger<AnalyseErrorQueues> logger)
+        {
+            _analyser = analyser;
+            _logger = logger;
         }
 
-        [FunctionName("AnalyseErrorQueues")]
-#if DEBUG
-        public async Task Run([TimerTrigger("0 */1 * * * *")]TimerInfo timer, ILogger log)
-#else
-        public async Task Run([TimerTrigger("0 0 * * * *")]TimerInfo timer, ILogger log)
-#endif
+        [Function("AnalyseErrorQueue")]
+        public async Task Run(
+            [TimerTrigger("0 0 * * * *", RunOnStartup = false)] TimerInfo myTimer)
         {
-            if (log.IsEnabled(LogLevel.Information))
+            try
             {
-                log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
-                log.LogInformation(_analyser == null ? "analyser is null": $"analyser is NOT null {_analyser.GetType().ToString()}");
-            }
+                _logger.LogInformation($"AnalyseErrorQueue function executed at: {DateTime.Now}");
 
-            await _analyser.Run();
+                if (myTimer.ScheduleStatus is not null)
+                {
+                    _logger.LogInformation($"Next timer schedule at: {myTimer.ScheduleStatus.Next}");
+                }
+
+                await _analyser.Run();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled exception occurred while running AnalyseErrorQueue.");
+                throw;
+            }
         }
     }
 }

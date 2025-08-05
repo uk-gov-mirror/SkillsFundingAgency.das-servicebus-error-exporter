@@ -8,25 +8,26 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SFA.DAS.Tools.AnalyseErrorQueues.Domain;
+using Microsoft.Extensions.Options;
+using SFA.DAS.Tools.AnalyseErrorQueues.Domain.Configuration;
 
 namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.DataSinkService
 {
     public class laDataSink : IDataSink
     {
 		private string datestring = string.Empty;
-		private readonly IConfiguration _config;
+		private readonly LADataSinkSettings _config;
 		private readonly ILogger _logger;
 
-		public laDataSink(IConfiguration config, ILogger<laDataSink> logger)
+		public laDataSink(IOptions<LADataSinkSettings> config, ILogger<laDataSink> logger)
 		{
-			_config = config ?? throw new Exception("config is null");
+			_config = config.Value ?? throw new Exception("config is null");
 			_logger = logger ?? throw new Exception("logger is null");
 		}
 
-        public void SinkMessages(string envName, string queueName, IEnumerable<sbMessageModel> messages)
+        public async Task SinkMessages(string envName, string queueName, IEnumerable<sbMessageModel> messages)
         {
             // Create a hash for the API signature
             datestring = DateTime.UtcNow.ToString("r");
@@ -47,9 +48,9 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.DataSinkService
                 };
 
             // Send to log analytics in small(ish) batches.  We dont want to send 100s of messages in one go.
-            var chunkSize = _config.GetValue<int>("LADataSinkSettings:ChunkSize");
-            var sharedKey = _config["LADataSinkSettings:sharedKey"];
-            var workspaceId = _config["LADataSinkSettings:workspaceId"];
+            var chunkSize = _config.ChunkSize;
+            var sharedKey = _config.sharedKey;
+            var workspaceId = _config.workspaceId;
             var sendBatches = errorsByReceivingDomain.ChunkBy(chunkSize);
 
             _logger.LogInformation($"chunkSize: {chunkSize}");
@@ -91,9 +92,9 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.DataSinkService
 		// Send a request to the POST API endpoint
 		public void PostData(string signature, string date, string json)
 		{
-            var logName = _config["LADataSinkSettings:LogName"];
-            var timestampField = _config["LADataSinkSettings:TimeStampField"];
-            var workspaceId = _config["LADataSinkSettings:workspaceId"];
+            var logName = _config.LogName;
+            var timestampField = _config.TimeStampField;
+            var workspaceId = _config.workspaceId;
             string url = $"https://{workspaceId}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01";
 
             _logger.LogInformation($"logName: {logName}");

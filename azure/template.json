@@ -11,6 +11,10 @@
         "environmentName": {
             "type": "string"
         },
+        "configNames": {
+            "type": "string",
+            "defaultValue": "SFA.DAS.Tools.AnalyseErrorQueues.Functions"
+        },
         "resourceEnvironmentName": {
             "type": "string"
         },
@@ -43,12 +47,16 @@
         },
         "functionsExtensionVersion": {
             "type": "string",
-            "defaultValue": "~3.0"
+            "defaultValue": "~4"
+        },
+        "netFrameworkVersion": {
+            "type": "string",
+            "defaultValue": "v8.0"
         },
         "utcValue": {
             "type": "string",
             "defaultValue": "[utcNow()]"
-    }
+    	}
     },
     "variables": {
         "deploymentUrlBase": "https://raw.githubusercontent.com/SkillsFundingAgency/das-platform-building-blocks/master/templates/",
@@ -178,6 +186,9 @@
                     "ipSecurityRestrictions": {
                         "value": "[parameters('workerAccessRestrictions')]"
                     },
+                    "netFrameworkVersion": {
+                        "value": "[parameters('netFrameworkVersion')]"
+                    },
                     "functionAppAppSettings": {
                         "value": {
                             "array": [
@@ -186,8 +197,8 @@
                                     "value": "[parameters('sharedStorageAccountConnectionString')]"
                                 },
                                 {
-                                    "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-                                    "value": "[reference('function-app-insights').outputs.InstrumentationKey.value]"
+                                    "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                                    "value": "[reference('function-app-insights').outputs.ConnectionString.value]"
                                 },
                                 {
                                     "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -195,11 +206,19 @@
                                 },
                                 {
                                     "name": "FUNCTIONS_WORKER_RUNTIME",
-                                    "value": "dotnet"
+                                    "value": "dotnet-isolated"
                                 },
                                 {
                                     "name": "EnvironmentName",
                                     "value": "[toUpper(parameters('environmentName'))]"
+                                },
+                                {
+                                    "name": "ConfigNames",
+                                    "value": "[parameters('configNames')]"
+                                },
+                                {
+                                    "name": "Version",
+                                    "value": "1.0"
                                 },
                                 {
                                     "name": "LoggingRedisConnectionString",
@@ -245,10 +264,7 @@
                         "value": "[variables('sharedServiceBusName')]"
                     }
                 }
-            },
-            "dependsOn": [
-                "function-app"
-            ]
+            }
         }
     ],
     "outputs": {

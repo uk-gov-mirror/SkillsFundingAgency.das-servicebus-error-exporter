@@ -1,43 +1,49 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Microsoft.Azure.ServiceBus;
-using Microsoft.Azure.ServiceBus.Core;
-using Microsoft.Azure.ServiceBus.Primitives;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SFA.DAS.Tools.AnalyseErrorQueues.Domain;
-using System.Text;
-using Microsoft.Azure.ServiceBus.Management;
+using SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService;
+using System.Collections.Generic;
 using System.Linq;
+using System;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using Azure.Messaging.ServiceBus;
+using SFA.DAS.Tools.AnalyseErrorQueues.Domain.Configuration;
+using Azure.Messaging.ServiceBus.Administration;
 
 namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService
 {
     public class SvcBusService : ISvcBusService
     {
-        private readonly IConfiguration _config;
+        private readonly ServiceBusRepoSettings _config;
         private readonly ILogger _logger;
+        private readonly ServiceBusClient _serviceBusClient;
 
-        public SvcBusService(IConfiguration config, ILogger<SvcBusService> logger)
+        public SvcBusService(ServiceBusClient serviceBusClient, IOptions<ServiceBusRepoSettings> config, ILogger<SvcBusService> logger)
         {
-            _config = config ?? throw new Exception("config is null");
+            _serviceBusClient = serviceBusClient;
+            _config = config.Value ?? throw new Exception("config is null");
             _logger = logger ?? throw new Exception("logger is null");
         }
 
         public async Task<IEnumerable<string>> GetErrorQueuesAsync()
         {
 
-            var sbConnectionString = _config.GetValue<string>("ServiceBusRepoSettings:ServiceBusConnectionString");
-            var tokenProvider = TokenProvider.CreateManagedServiceIdentityTokenProvider();
-            var sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(sbConnectionString);
-            var managementClient = new ManagementClient(sbConnectionStringBuilder, tokenProvider);
+            var managementClient = new ServiceBusAdministrationClient(_config.ServiceBusConnectionString);
+            var errorQueues = new List<string>();
 
-            var queues = await managementClient.GetQueuesAsync().ConfigureAwait(false);         
-            var regexString = _config.GetValue<string>("ServiceBusRepoSettings:QueueSelectionRegex");
-            var queueSelectionRegex = new Regex(regexString);
-            var errorQueues = queues.Where(q => queueSelectionRegex.IsMatch(q.Path)).Select(x => x.Path);            
+            var regexTimeout = TimeSpan.FromSeconds(5);
+            var queueSelectionRegex = new Regex(_config.QueueSelectionRegex, RegexOptions.None, regexTimeout);
 
+
+            await foreach (var queue in managementClient.GetQueuesAsync())
+            {
+                if (queueSelectionRegex.IsMatch(queue.Name))
+                {
+                    errorQueues.Add(queue.Name);
+                }
+            }
 #if DEBUG
             _logger.LogDebug("Error Queues:");
             foreach (var queue in errorQueues)
@@ -50,95 +56,112 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.SvcBusService
 
         public async Task<IList<sbMessageModel>> PeekMessages(string queueName)
         {
-            var sbConnectionString = _config.GetValue<string>("ServiceBusRepoSettings:ServiceBusConnectionString");
-            var batchSize = _config.GetValue<int>("ServiceBusRepoSettings:PeekMessageBatchSize");
-            var notifyBatchSize = _config.GetValue<int>("ServiceBusRepoSettings:NotifyUIBatchSize");
+            var batchSize = _config.PeekMessageBatchSize;
+            var notifyBatchSize = _config.NotifyUIBatchSize;
 
-            var sbConnectionStringBuilder = new ServiceBusConnectionStringBuilder(sbConnectionString);
-            var tokenProvider = TokenProvider.CreateManagedServiceIdentityTokenProvider();
-            var messageReceiver = new MessageReceiver(sbConnectionStringBuilder.Endpoint, queueName, tokenProvider);
+
+            var messageReceiver = _serviceBusClient.CreateReceiver(queueName);
 
 #if DEBUG
-            _logger.LogDebug($"ServiceBusConnectionString: {sbConnectionString}");
+            _logger.LogDebug($"ServiceBusConnectionString: {_config.ServiceBusConnectionString}");
             _logger.LogDebug($"PeekMessageBatchSize: {batchSize}");
 #endif
 
             int totalMessages = 0;
-            IList<Message> peekedMessages;
             var formattedMessages = new List<sbMessageModel>();
 
-            peekedMessages = await messageReceiver.PeekAsync(batchSize);
-
+            var peekedMessages = await messageReceiver.PeekMessagesAsync(batchSize);
+#if DEBUG
             _logger.LogDebug($"Peeked Message Count: {peekedMessages.Count}");
+#endif
 
-            while (peekedMessages.Count > 0)
+            while (peekedMessages?.Count > 0)
             {
                 foreach (var msg in peekedMessages)
                 {
                     var messageModel = FormatMsgToLog(msg);
                     totalMessages++;
                     if (totalMessages % notifyBatchSize == 0)
+#if DEBUG
                         _logger.LogDebug($"    {queueName} - processed: {totalMessages}");
-
+#endif
+                    
                     formattedMessages.Add(messageModel);
                 }
-                peekedMessages = await messageReceiver.PeekAsync(batchSize);
+                peekedMessages = await messageReceiver.PeekMessagesAsync(batchSize);
             }
             await messageReceiver.CloseAsync();
 
             return formattedMessages;
         }
 
-        private sbMessageModel FormatMsgToLog(Message msg)
+        private sbMessageModel FormatMsgToLog(ServiceBusReceivedMessage msg)
         {
-            object exceptionMessage = string.Empty;
-            string exceptionMessageNoCrLf = string.Empty;
-            string enclosedMessageTypeTrimmed = string.Empty;
             var messageModel = new sbMessageModel();
-            if (msg.UserProperties.TryGetValue("NServiceBus.ExceptionInfo.Message", out exceptionMessage))
-            {
-                // this is an nServiveBusFailure.
-                exceptionMessageNoCrLf = exceptionMessage.ToString().CrLfToTilde();
-                enclosedMessageTypeTrimmed = msg.UserProperties.ContainsKey("NServiceBus.EnclosedMessageTypes")
-                    ? msg.UserProperties["NServiceBus.EnclosedMessageTypes"].ToString().Split(',')[0]
-                    : "";
 
-                messageModel.MessageId = msg.UserProperties["NServiceBus.MessageId"].ToString();
-                messageModel.TimeOfFailure = msg.UserProperties["NServiceBus.TimeOfFailure"].ToString();
-                messageModel.ExceptionType = msg.UserProperties["NServiceBus.ExceptionInfo.ExceptionType"].ToString();
-                messageModel.OriginatingEndpoint = msg.UserProperties["NServiceBus.OriginatingEndpoint"].ToString();
-                messageModel.ProcessingEndpoint = msg.UserProperties["NServiceBus.ProcessingEndpoint"].ToString();
-                messageModel.EnclosedMessageTypes = enclosedMessageTypeTrimmed;
-                messageModel.StackTrace = msg.UserProperties["NServiceBus.ExceptionInfo.StackTrace"].ToString().CrLfToTilde();
-                messageModel.ExceptionMessage = exceptionMessageNoCrLf;
-            }
-            else if (msg.UserProperties.TryGetValue("DeadLetterReason", out exceptionMessage))
-            {
-                exceptionMessageNoCrLf = exceptionMessage.ToString().CrLfToTilde();
-                enclosedMessageTypeTrimmed = msg.UserProperties.ContainsKey("NServiceBus.EnclosedMessageTypes")
-                    ? msg.UserProperties["NServiceBus.EnclosedMessageTypes"].ToString().Split(',')[0]
-                    : "";
+            string GetStringValue(string key) =>
+                msg.ApplicationProperties.TryGetValue(key, out var value) ?
+                Truncate(value?.ToString()) : string.Empty;
 
-                messageModel.MessageId = msg.UserProperties["NServiceBus.MessageId"].ToString();
-                messageModel.TimeOfFailure = msg.UserProperties["NServiceBus.TimeSent"].ToString();
-                messageModel.ExceptionType = "Unknown";
-                messageModel.OriginatingEndpoint = msg.UserProperties["NServiceBus.OriginatingEndpoint"].ToString();
-                messageModel.ProcessingEndpoint = "Unknown";
-                messageModel.StackTrace = string.Empty;
-                messageModel.EnclosedMessageTypes = enclosedMessageTypeTrimmed;
-                messageModel.ExceptionMessage = exceptionMessageNoCrLf;
-            }
+            string GetCrLfToTildeValue(string key) =>
+                Truncate(GetStringValue(key).CrLfToTilde());
+
+            string GetSplitFirstValue(string key) =>
+                Truncate(GetStringValue(key).Split(',').FirstOrDefault() ?? string.Empty);
+
+            try
+            {
+                if (msg.ApplicationProperties.TryGetValue("NServiceBus.ExceptionInfo.Message", out var exceptionMessage))
+                {
+                    messageModel.ExceptionMessage = Truncate(exceptionMessage?.ToString()?.CrLfToTilde());
+                    messageModel.EnclosedMessageTypes = GetSplitFirstValue("NServiceBus.EnclosedMessageTypes");
+                    messageModel.MessageId = GetStringValue("NServiceBus.MessageId");
+                    messageModel.TimeOfFailure = GetStringValue("NServiceBus.TimeOfFailure");
+                    messageModel.ExceptionType = GetStringValue("NServiceBus.ExceptionInfo.ExceptionType");
+                    messageModel.OriginatingEndpoint = GetStringValue("NServiceBus.OriginatingEndpoint");
+                    messageModel.ProcessingEndpoint = GetStringValue("NServiceBus.ProcessingEndpoint");
+                    messageModel.StackTrace = GetCrLfToTildeValue("NServiceBus.ExceptionInfo.StackTrace");
+                }
+                else if (msg.ApplicationProperties.TryGetValue("DeadLetterReason", out exceptionMessage))
+                {
+                    messageModel.ExceptionMessage = Truncate(exceptionMessage?.ToString()?.CrLfToTilde());
+                    messageModel.EnclosedMessageTypes = GetSplitFirstValue("NServiceBus.EnclosedMessageTypes");
+                    messageModel.MessageId = GetStringValue("NServiceBus.MessageId");
+                    messageModel.TimeOfFailure = GetStringValue("NServiceBus.TimeSent");
+                    messageModel.ExceptionType = "Unknown";
+                    messageModel.OriginatingEndpoint = GetStringValue("NServiceBus.OriginatingEndpoint");
+                    messageModel.ProcessingEndpoint = "Unknown";
+                    messageModel.StackTrace = string.Empty;
+                }
 
 #if DEBUG
-            // When developing I want to be able to use as simple a message as possible but still see some information in the output
-            // so I will just grab the message body and output it raw
-            else
-            {
-                _logger.LogDebug($"msg.Body: {Encoding.UTF8.GetString(msg.Body)}");
-                messageModel.RawMessage = Encoding.UTF8.GetString(msg.Body);
-            }
+                else
+                {
+                    var bodyString = Truncate(Encoding.UTF8.GetString(msg.Body.ToArray()));
+                    _logger.LogDebug($"msg.Body: {bodyString}");
+                    messageModel.RawMessage = bodyString;
+                }
 #endif
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error formatting message to log.");
+                messageModel.ExceptionMessage = "Error formatting message: " + ex.Message;
+            }
+
             return messageModel;
+        }
+        private string Truncate(string input, int maxLength = 50000)
+        {
+            if (string.IsNullOrEmpty(input)) return string.Empty;
+
+            if (input.Length > maxLength)
+            {
+                _logger?.LogWarning("Message body exceeds {OriginalLength} characters. Truncating to {TruncateLength}.", maxLength, maxLength);
+                return input.Substring(0, maxLength) + "...";
+            }
+
+            return input;
         }
     }
 }

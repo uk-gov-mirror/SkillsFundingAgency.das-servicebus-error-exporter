@@ -9,7 +9,7 @@ namespace SFA.DAS.Tools.AnalyseErrorQueues.Services.DataSinkService
 {
     public class psvDataSink : IDataSink
     {
-        public void SinkMessages(string envName, string queueName, IEnumerable<sbMessageModel> messages)
+        public async Task SinkMessages(string envName, string queueName, IEnumerable<sbMessageModel> messages)
         {
            
             var sb = new StringBuilder();

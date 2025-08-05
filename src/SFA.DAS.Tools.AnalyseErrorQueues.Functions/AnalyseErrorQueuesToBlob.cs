@@ -1,35 +1,43 @@
 ﻿using System;
-using Microsoft.Azure.Functions.Extensions.DependencyInjection;
-using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using SFA.DAS.Tools.AnalyseErrorQueues.Engine;
 using System.Threading.Tasks;
+using Microsoft.Azure.Functions.Worker;
 
 namespace SFA.DAS.Tools.AnalyseErrorQueues.Functions
 {
     public class AnalyseErrorQueuesToBlob
     {
         private readonly IAnalyseQueuesBase _analyser;
+        private readonly ILogger<AnalyseErrorQueuesToBlob> _logger;
 
-        public AnalyseErrorQueuesToBlob(IAnalyseQueuesBase analyser)
+        public AnalyseErrorQueuesToBlob(IAnalyseQueuesBase analyser, ILogger<AnalyseErrorQueuesToBlob> logger)
         {
             _analyser = analyser ?? throw new Exception("Analyser is null");
+            _logger = logger ?? throw new Exception("Logger is null");
         }
 
-        [FunctionName("AnalyseErrorQueuesToBlob")]
-#if DEBUG
-        public async Task Run([TimerTrigger("0 */1 * * * *")]TimerInfo timer, ILogger log)
-#else
-        public async Task Run([TimerTrigger("0 0 0 * * *")]TimerInfo timer, ILogger log)
-#endif
+        [Function("AnalyseErrorQueuesToBlob")]
+        public async Task Run([TimerTrigger("0 0 0 * * *", RunOnStartup = false)] TimerInfo timer)
         {
-            if (log.IsEnabled(LogLevel.Information))
+            _logger.LogInformation($"AnalyseErrorQueueToBlob function executed at: {DateTime.Now}");
+
+            if (_analyser == null)
             {
-                log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
-                log.LogInformation(_analyser == null ? "analyser is null" : $"analyser is NOT null {_analyser.GetType().ToString()}");
+                _logger.LogError("_analyser is null. Skipping execution.");
+                return;
             }
 
-            await _analyser.Run();
+            try
+            {
+                await _analyser.Run();
+                _logger.LogInformation("AnalyseErrorQueueToBlob function completed successfully.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while running AnalyseErrorQueueToBlob.");
+                throw;
+            }
         }
     }
 }
